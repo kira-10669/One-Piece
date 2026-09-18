@@ -330,6 +330,7 @@ let rage=0, rageActive=0;                          // rage surge: fills from kil
 let runStartTime=0, runTime=0;                     // run timer for competitive scoring
 let dailySeed=0, seededRun=false;                  // daily challenge seed
 let eventActive=null, eventTimer=0, nextEventAt=0; // mid-level mini-events
+let splashActive=false;                            // guard: prevents recursive splash-death chains
 /* ---- Customizable HUD: player can toggle each element in Settings ---- */
 let hudCfg={score:true,coins:true,plevel:true,weapon:true,ammo:true,bars:true,powerups:true,combo:true,dialogue:true};
 try{const s=JSON.parse(localStorage.getItem('neonArenaHud')||'null');if(s)hudCfg=Object.assign(hudCfg,s);}catch(e){}
@@ -564,7 +565,7 @@ function triggerEvent(){
 function killEnemy(j,e,byBullet){enemies.splice(j,1);if(byBullet)addCombo();kills++;
   if(e.type===3)bossKills++;
   // volatile elite explodes on death
-  if(e.elite&&e.mod==='volatile'){splashDamage(e.x,e.y,90,4*dmgMul,'#ff8f3c');}
+  if(e.elite&&e.mod==='volatile'&&!splashActive){splashActive=true;splashDamage(e.x,e.y,90,4*dmgMul,'#ff8f3c');splashActive=false;}
   const styleMul=1+styleScore*0.002;                     // style meter boosts score
   const pts=Math.round(e.val*comboMul()*styleMul*(rageActive>0?1.5:1));score+=pts;
   const cn=(e.elite?3:1)+(e.type===3?12:0);coins+=cn;totalCoins+=cn;
@@ -598,7 +599,10 @@ function burst(x,y,c,n){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=1+Math
   particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:20+Math.random()*16,c,r:1+Math.random()*3});}}
 function ring(x,y,c){for(let i=0;i<18;i++){const a=i/18*6.28,s=4.5;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:18,c,r:2});}}
 function splashDamage(x,y,radius,dmg,color){ring(x,y,color||'#ff8f3c');burst(x,y,'#ff8f3c',14);shake=Math.min(shake+4,10);SFX.explode();
-  for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];if((e.x-x)**2+(e.y-y)**2<(radius+e.r)**2){e.hp-=dmg;e.hit=6;if(e.hp<=0)killEnemy(j,e,true);}}}
+  // Apply damage first; collect indices to kill, then kill them in one pass (no recursion into the live array).
+  const toKill=[];
+  for(let j=enemies.length-1;j>=0;j--){const e=enemies[j];if((e.x-x)**2+(e.y-y)**2<(radius+e.r)**2){e.hp-=dmg;e.hit=6;if(e.hp<=0)toKill.push(j);}}
+  for(const j of toKill){const e=enemies[j];if(e)killEnemy(j,e,true);}}
 
 /* level-up upgrade choice (skill-tree lite) */
 const UPGRADES=[
