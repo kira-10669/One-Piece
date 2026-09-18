@@ -674,7 +674,14 @@ function update(){
         bullets.push({x:turret.x,y:turret.y,vx:Math.cos(a)*12,vy:Math.sin(a)*12,life:60,dmg:1*dmgMul,r:3,c:'#9dff5b',pierce:false,splash:0,freeze:false});}}}
 
   if(enemiesLeft>0){spawnTimer--;if(spawnTimer<=0){spawnEnemy();enemiesLeft--;spawnTimer=Math.max(8,38-level*2);}}
-  else if(enemies.length===0){ eventActive=null;eventTimer=0;nextEventAt=0; levelClear();return; }
+  else if(enemies.length===0){
+    // level clearing — flush everything that could spike this frame, then advance
+    eventActive=null;eventTimer=0;nextEventAt=0;
+    ebullets.length=0;bullets.length=0;               // clear all projectiles
+    if(particles.length>120)particles.length=120;     // trim particles hard
+    rageActive=0;rage=0;slowField=0;                   // stop any active surge/field
+    levelClear();return;
+  }
 
   const slowMul=slowField>0?0.4:1;
 
@@ -873,16 +880,22 @@ function loop(){if(!running)return;
   try{
     if(hitStop>0){draw();requestAnimationFrame(loop);return;}
     update();if(!running)return;draw();
+    loopErrs=0; // healthy frame
   }catch(err){
-    // Safety net: never let a single bad frame kill the game.
-    // Trim runaway arrays and keep going.
-    try{if(typeof bullets!=='undefined'&&bullets.length>300)bullets.length=200;
-        if(typeof ebullets!=='undefined'&&ebullets.length>300)ebullets.length=200;
-        if(typeof particles!=='undefined'&&particles.length>400)particles.length=250;
-        if(typeof enemies!=='undefined'&&enemies.length>60)enemies.length=40;}catch(e){}
+    // Safety net: never let a bad frame freeze the game.
+    try{if(typeof bullets!=='undefined')bullets.length=0;
+        if(typeof ebullets!=='undefined')ebullets.length=0;
+        if(typeof particles!=='undefined')particles.length=0;
+        if(typeof orbs!=='undefined')orbs.length=0;
+        if(typeof enemies!=='undefined'&&enemies.length>30)enemies.length=20;}catch(e){}
+    loopErrs++;
+    // if frames keep failing (e.g. a bad boss-death state), bail this level to the shop
+    if(loopErrs>4){loopErrs=0;try{if(typeof enemies!=='undefined')enemies.length=0;
+      running=false;levelClear();return;}catch(e2){}}
   }
   requestAnimationFrame(loop);
 }
+let loopErrs=0;
 function goFullscreen(){const el=document.documentElement;const req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
   if(req){try{const p=req.call(el);if(p&&p.catch)p.catch(()=>{});}catch(e){}}setTimeout(resize,300);}
 document.addEventListener('fullscreenchange',()=>setTimeout(resize,150));
@@ -967,8 +980,9 @@ function buy(it){if(coins<it.cost)return;if(it.kind==='gun'&&owned[it.id])return
   else if(it.kind==='heal'){player.hp=player.maxhp;}else if(it.kind==='bomb'){bombs++;}else if(it.kind==='dmg'){dmgMul*=1.25;}
   else if(it.kind==='energy'){energy=maxEnergy;}showToast('Bought '+it.name,'#ffd34d');updateHUD();renderShop();}
 
-function levelClear(){running=false;saveHi();checkAch();
-  if(level>=BASE_LEVELS&&!endless){won=true;checkAch();hint.classList.add('hidden');
+function levelClear(){running=false;
+  try{ saveHi();checkAch(); }catch(e){}
+  if(level>=BASE_LEVELS&&!endless){won=true;try{checkAch();}catch(e){}hint.classList.add('hidden');
     overlay.innerHTML=`<h1>YOU <span>WON</span></h1><p class="big">All ${BASE_LEVELS} levels cleared! Score: ${score}</p>
       ${score>=hiScore?'<p class="hi">★ NEW HIGH SCORE ★</p>':'<p class="hi">High score: '+hiScore+'</p>'}
       <p>Endless mode unlocked — keep going for a higher score.</p>
