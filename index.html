@@ -134,6 +134,12 @@ const CONFIG = {
   //    Leave a name and just add the matching file; missing files fall back to shapes.
   images: {
     background: "background.png",   // arena backdrop  (recommended size noted at bottom)
+    // OPTIONAL — different background per level (cycles every 4 levels). Add these files
+    // to change scenery each level; if left out, "background.png" is used everywhere.
+    background1: "background.png",   // levels 1,5,9,13,17
+    background2: "background.png",   // levels 2,6,10,14,18
+    background3: "background.png",   // levels 3,7,11,15,19
+    background4: "background.png",   // levels 4,8,12,16,20
     char1: "luffy.png",             // FIGHTER 1 — stretch brawler (your art here)
     char2: "zoro.png",             // FIGHTER 2 — master swordsman (your art here)
     char3: "sanji.png",             // FIGHTER 3 — leg fighter (your art here)
@@ -235,6 +241,10 @@ muteBtn.onclick=(e)=>{e.stopPropagation();toggleMute();};
 
 /* sprite + background slots — sourced from CONFIG.images */
 const IMG_SRC={bg:CONFIG.images.background,
+  bg1:(CONFIG.images.background1||CONFIG.images.background),
+  bg2:(CONFIG.images.background2||CONFIG.images.background),
+  bg3:(CONFIG.images.background3||CONFIG.images.background),
+  bg4:(CONFIG.images.background4||CONFIG.images.background),
   char1:CONFIG.images.char1,char2:CONFIG.images.char2,char3:CONFIG.images.char3,
   char4:CONFIG.images.char4,char5:CONFIG.images.char5,
   enemy1:CONFIG.images.enemy1,enemy2:CONFIG.images.enemy2,enemy3:CONFIG.images.enemy3,enemy4:CONFIG.images.enemy4,
@@ -365,7 +375,7 @@ function reset(){
 function equip(g){gun=g;const w=WEAPONS[g];ammo=w.mag;reserve=w.ammo;reloading=false;reloadT=0;gunEl.textContent=w.name;updateHUD();}
 function isBossLevel(){return level%5===0 && (!endless||level<=BASE_LEVELS);}
 function startLevel(){level++;theme=THEMES[(level-1)%THEMES.length];
-  const boss=isBossLevel();enemiesLeft=boss?2+Math.floor(level/3):10+level*4;spawnTimer=0;waveEl.textContent=endless?('∞'+ (level-BASE_LEVELS)):level;
+  const boss=isBossLevel();enemiesLeft=boss?3+Math.floor(level/2):16+level*6;spawnTimer=0;waveEl.textContent=endless?('∞'+ (level-BASE_LEVELS)):level;
   // schedule a mid-level mini-event (not on boss levels)
   eventActive=null;eventTimer=0;nextEventAt=boss?0:gameTime+300+Math.floor(Math.random()*300);
   // spawn hazards + crates for variety
@@ -514,13 +524,13 @@ function spawnEnemy(){
   mkEnemy(t,x,y,elite);
 }
 function mkEnemy(t,x,y,elite){let e;
-  if(t===0){const hp=2+Math.floor(level/3);e={x,y,r:14,hp,maxhp:hp,speed:1.2+level*0.05,type:0,c:'#ff4d5e',touch:0.8,val:10};}
+  if(t===0){const hp=3+Math.floor(level/2);e={x,y,r:14,hp,maxhp:hp,speed:1.2+level*0.05,type:0,c:'#ff4d5e',touch:0.8,val:10};}
   if(t===1){e={x,y,r:10,hp:1,maxhp:1,speed:2.6+level*0.06,type:1,c:'#9dff5b',touch:0.6,val:15};}
-  if(t===2){const hp=6+level;e={x,y,r:20,hp,maxhp:hp,speed:0.8+level*0.03,type:2,c:'#a06bff',touch:1.4,val:25};}
-  if(t===4){const hp=3+Math.floor(level/2);e={x,y,r:15,hp,maxhp:hp,speed:0.9+level*0.03,type:4,c:'#ff5bb0',touch:0.8,val:30,cd:60+Math.random()*60};}
+  if(t===2){const hp=10+level*2;e={x,y,r:20,hp,maxhp:hp,speed:0.8+level*0.03,type:2,c:'#a06bff',touch:1.4,val:25};}
+  if(t===4){const hp=5+Math.floor(level*0.8);e={x,y,r:15,hp,maxhp:hp,speed:0.9+level*0.03,type:4,c:'#ff5bb0',touch:0.8,val:30,cd:60+Math.random()*60};}
   if(t===5){const hp=4+Math.floor(level/2);e={x,y,r:17,hp,maxhp:hp,speed:1.0+level*0.04,type:5,c:'#ffb347',touch:1.0,val:20,gen:0};}
   if(t===6){const hp=3+Math.floor(level/3);e={x,y,r:13,hp,maxhp:hp,speed:1.3+level*0.04,type:6,c:'#c77bff',touch:0.9,val:28,cd:70+Math.random()*50};}
-  if(t===7){const hp=6+level;e={x,y,r:16,hp,maxhp:hp,speed:0.7+level*0.02,type:7,c:'#5bffa0',touch:0.7,val:35,cd:80};}
+  if(t===7){const hp=9+level*2;e={x,y,r:16,hp,maxhp:hp,speed:0.7+level*0.02,type:7,c:'#5bffa0',touch:0.7,val:35,cd:80};}
   e.hit=0;e.frozen=0;e.elite=elite;e.scale=1;
   if(elite){e.hp*=2.2;e.maxhp=e.hp;e.r+=4;e.speed*=1.15;e.touch*=1.4;e.val*=3;
     // random elite modifier: shielded (needs more hits), swift (much faster), volatile (explodes on death)
@@ -536,13 +546,16 @@ function splitEnemy(e){if(e.gen>=1)return;for(let i=0;i<2;i++){const a=Math.rand
 
 /* mid-level mini-events add unpredictability */
 function triggerEvent(){
+  if(isBossLevel()){nextEventAt=0;return;} // never during a boss fight — prevents soft-lock
   const pick=Math.random()<0.5?'swarm':'treasure';
   eventActive=pick;eventTimer=300;nextEventAt=gameTime+600+Math.floor(Math.random()*400);
   if(pick==='swarm'){showToast('⚔ AMBUSH! Swarm incoming','#ff4d5e');SFX.boss();
+    let added=0;
     for(let i=0;i<6+level;i++){const edge=Math.floor(Math.random()*4);let x,y;
       if(edge===0){x=-20;y=Math.random()*H;}else if(edge===1){x=W+20;y=Math.random()*H;}
       else if(edge===2){x=Math.random()*W;y=-20;}else{x=Math.random()*W;y=H+20;}
-      mkEnemy(Math.random()<0.6?0:4,x,y,false);}
+      mkEnemy(Math.random()<0.6?0:4,x,y,false);added++;}
+    enemiesLeft+=added; // count swarm foes so the level can still complete
   } else { showToast('💰 TREASURE RUSH! Grab the coins','#ffd34d');SFX.pickup();
     for(let i=0;i<8;i++)dropItem(80+Math.random()*(W-160),80+Math.random()*(H-160),Math.random()<0.5?'ammo':'health');
   }
@@ -657,7 +670,7 @@ function update(){
         bullets.push({x:turret.x,y:turret.y,vx:Math.cos(a)*12,vy:Math.sin(a)*12,life:60,dmg:1*dmgMul,r:3,c:'#9dff5b',pierce:false,splash:0,freeze:false});}}}
 
   if(enemiesLeft>0){spawnTimer--;if(spawnTimer<=0){spawnEnemy();enemiesLeft--;spawnTimer=Math.max(8,38-level*2);}}
-  else if(enemies.length===0){levelClear();return;}
+  else if(enemies.length===0){ eventActive=null;eventTimer=0;nextEventAt=0; levelClear();return; }
 
   const slowMul=slowField>0?0.4:1;
 
@@ -729,17 +742,20 @@ function pickup(d){SFX.pickup();
 
 /* draw */
 function drawField(){
-  if(IMGok.bg){const iw=IMG.bg.width,ih=IMG.bg.height,s=Math.max(W/iw,H/ih),dw=iw*s,dh=ih*s;
-    ctx.drawImage(IMG.bg,(W-dw)/2,(H-dh)/2,dw,dh);ctx.fillStyle='rgba(8,11,18,0.35)';ctx.fillRect(0,0,W,H);}
+  // choose a background: per-level bg1..bg4 (cycles like the theme), else the single bg
+  const bgKey=['bg1','bg2','bg3','bg4'][(level-1)%4];
+  const useBg=IMGok[bgKey]?bgKey:(IMGok.bg?'bg':null);
+  if(useBg){const im=IMG[useBg];const iw=im.width,ih=im.height,s=Math.max(W/iw,H/ih),dw=iw*s,dh=ih*s;
+    ctx.drawImage(im,(W-dw)/2,(H-dh)/2,dw,dh);ctx.fillStyle='rgba(8,11,18,0.35)';ctx.fillRect(0,0,W,H);}
   else{
     if(!_grad||_gradKey!==theme.name+W+'x'+H){ // rebuild only when theme or size changes
       _grad=ctx.createRadialGradient(W/2,H*0.45,80,W/2,H*0.5,Math.max(W,H)*0.75);
       _grad.addColorStop(0,theme.a);_grad.addColorStop(1,theme.b);_gradKey=theme.name+W+'x'+H;}
     ctx.fillStyle=_grad;ctx.fillRect(0,0,W,H);}
-  const dim=IMGok.bg?0.35:1;ctx.fillStyle=theme.tint;
+  const dim=useBg?0.35:1;ctx.fillStyle=theme.tint;
   if(gfxCfg.stars)stars.forEach(s=>{s.x-=s.z*0.25;if(s.x<0){s.x=W;s.y=Math.random()*H;}
     ctx.globalAlpha=(0.15+s.z*0.2)*dim;ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,7);ctx.fill();});ctx.globalAlpha=1;
-  if(!IMGok.bg){const gs=48,off=(gameTime*0.4)%gs;ctx.strokeStyle='#16223580';ctx.lineWidth=1;ctx.beginPath();
+  if(!useBg){const gs=48,off=(gameTime*0.4)%gs;ctx.strokeStyle='#16223580';ctx.lineWidth=1;ctx.beginPath();
     for(let x=-off;x<W;x+=gs){ctx.moveTo(x,0);ctx.lineTo(x,H);}for(let y=-off;y<H;y+=gs){ctx.moveTo(0,y);ctx.lineTo(W,y);}ctx.stroke();}
   ctx.strokeStyle=theme.tint+'30';ctx.lineWidth=3;ctx.strokeRect(2,2,W-4,H-4);
   if(slowField>0){ctx.fillStyle='rgba(143,212,255,'+(0.05+0.03*Math.sin(gameTime*0.2))+')';ctx.fillRect(0,0,W,H);}
